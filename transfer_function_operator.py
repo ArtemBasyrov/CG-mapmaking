@@ -179,6 +179,7 @@ class trans_operator(object):
 
             self.NTOD = len(tod)
             self.n = int(self.NTOD/self.L)
+            breakpoints = np.arange(2*self.n)*int(self.L/2)
 
             file.close()
 
@@ -186,14 +187,23 @@ class trans_operator(object):
         # the first step. Do (T^T * N^-1 * T) * x        
         start = time.time()
         pool = Pool(processes=64)
-        res = pool.map(self._fourrier_proc1, range(self.n))
+        res = pool.map(self._fourrier_proc1, breakpoints)
         pool.close()
         pool.join()
         print('The parallel part finished in', time.time() - start, 's')
 
         x_tran = np.zeros(self.NTOD)
-        for i in range(self.n):
-            x_tran[i*self.L:(i+1)*self.L] = res.pop(0)
+        breakpoints[1:] += int(self.L/4)
+        breakpoints = np.append(breakpoints, breakpoints[-1] + int(3/4*self.L))
+        for i in range(2*self.n):
+            temp = res.pop(0)
+            if i == 0:
+                temp = temp[:int(3*self.L/4)]
+            elif i == 2*self.n - 1:
+                temp = temp[int(self.L/2):]
+            else:
+                temp = temp[int(self.L/2):int(3*self.L/4)]
+            x_tran[breakpoints[i]:breakpoints[i+1]] = temp
 
         # find parameters
         L_left = self.NTOD%self.L
@@ -253,24 +263,31 @@ class trans_operator(object):
        
             self.NTOD = len(tod) 
             self.n = int(self.NTOD/self.L)
+            breakpoints = np.arange(2*self.n)*int(self.L/2)
 
             file.close()
         #print('there are {0} segments with the total length of {1}'.format(self.n, self.n*self.L))
 
         start = time.time()
         pool = Pool(processes=64)
-        res = pool.map(self._fourrier_proc, range(self.n))
+        res = pool.map(self._fourrier_proc, breakpoints)
         pool.close()
         pool.join()
         end = time.time()
         print('TF_calculator finished with time:', end-start, 's')
        
-        #res = np.array(res).flatten() 
-        #x_tran[:len(res)] = res
-
         x_tran = np.zeros(self.NTOD)
-        for i in range(self.n):
-            x_tran[i*self.L:(i+1)*self.L] = res.pop(0)
+        breakpoints[1:] += int(self.L/4)
+        breakpoints = np.append(breakpoints, breakpoints[-1] + int(3/4*self.L))
+        for i in range(2*self.n):
+            temp = res.pop(0)
+            if i == 0:
+                temp = temp[:int(3*self.L/4)]
+            elif i == 2*self.n - 1:
+                temp = temp[int(self.L/2):]
+            else:
+                temp = temp[int(self.L/2):int(3*self.L/4)]
+            x_tran[breakpoints[i]:breakpoints[i+1]] = temp
 
         if self.TF_form == 'T': # return the array to how it was
             self.transfer_func = np.conj(self.transfer_func)
@@ -280,7 +297,7 @@ class trans_operator(object):
     
     def _fourrier_proc(self, k):
         with h5py.File(self.tod_fname, 'r') as file:
-            temp = file['tod'][k*self.L:(k+1)*self.L]
+            temp = file['tod'][k:k+self.L]
             file.close()
 
         F_x = np.fft.fft(temp, norm='ortho')
@@ -299,12 +316,12 @@ class trans_operator(object):
 
     def _fourrier_proc1(self, k):
         with h5py.File(self.tod_fname, 'r') as file:
-            temp = file['tod'][k*self.L:(k+1)*self.L]
+            temp = file['tod'][k:k+self.L]
             file.close()
 
         #sigma_path = '/mn/stornext/d5/data/artemba/other/sigma_noise_3e+2.h5'
         with h5py.File(self.sigma_path, 'r') as file:
-            sigma = file['tod'][k*self.L:(k+1)*self.L]
+            sigma = file['tod'][k:k+self.L]
             file.close()
 
         
