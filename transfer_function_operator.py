@@ -183,6 +183,8 @@ class trans_operator(object):
 
             file.close()
 
+        if breakpoints[-1] + self.L > self.NTOD:
+            breakpoints = breakpoints[:-1]
 
         # the first step. Do (T^T * N^-1 * T) * x        
         start = time.time()
@@ -195,14 +197,14 @@ class trans_operator(object):
         x_tran = np.zeros(self.NTOD)
         breakpoints[1:] += int(self.L/4)
         breakpoints = np.append(breakpoints, breakpoints[-1] + int(3/4*self.L))
-        for i in range(2*self.n):
+        for i in range(len(breakpoints)-1):
             temp = res.pop(0)
             if i == 0:
                 temp = temp[:int(3*self.L/4)]
-            elif i == 2*self.n - 1:
-                temp = temp[int(self.L/2):]
+            elif i == len(breakpoints)-2:
+                temp = temp[int(self.L/4):]
             else:
-                temp = temp[int(self.L/2):int(3*self.L/4)]
+                temp = temp[int(self.L/4):int(3*self.L/4)]
             x_tran[breakpoints[i]:breakpoints[i+1]] = temp
 
         # find parameters
@@ -268,6 +270,9 @@ class trans_operator(object):
             file.close()
         #print('there are {0} segments with the total length of {1}'.format(self.n, self.n*self.L))
 
+        if breakpoints[-1] + self.L > self.NTOD:
+            breakpoints = breakpoints[:-1]
+
         start = time.time()
         pool = Pool(processes=64)
         res = pool.map(self._fourrier_proc, breakpoints)
@@ -279,14 +284,14 @@ class trans_operator(object):
         x_tran = np.zeros(self.NTOD)
         breakpoints[1:] += int(self.L/4)
         breakpoints = np.append(breakpoints, breakpoints[-1] + int(3/4*self.L))
-        for i in range(2*self.n):
+        for i in range(len(breakpoints)-1):
             temp = res.pop(0)
             if i == 0:
                 temp = temp[:int(3*self.L/4)]
-            elif i == 2*self.n - 1:
-                temp = temp[int(self.L/2):]
+            elif i == len(breakpoints)-2:
+                temp = temp[int(self.L/4):]
             else:
-                temp = temp[int(self.L/2):int(3*self.L/4)]
+                temp = temp[int(self.L/4):int(3*self.L/4)]
             x_tran[breakpoints[i]:breakpoints[i+1]] = temp
 
         if self.TF_form == 'T': # return the array to how it was
@@ -325,17 +330,22 @@ class trans_operator(object):
             file.close()
 
         
-        F_x = np.fft.fft(temp, norm='ortho')
+        temp = self._fft_proc_for_double_TF(temp, sigma)
+        
+
+        return temp
+
+    def _fft_proc_for_double_TF(self, x, sigma):
+        F_x = np.fft.fft(x, norm='ortho')
         F_x = F_x*self.transfer_func
         temp = np.fft.ifft(F_x, norm='ortho').real
 
-        temp = temp/sigma/sigma 
+        temp = temp/sigma/sigma    
 
         transpose_TF = np.conj(self.transfer_func)
         F_x = np.fft.fft(temp, norm='ortho')
         F_x = F_x*transpose_TF
         temp = np.fft.ifft(F_x, norm='ortho').real
-        
 
         return temp
 
